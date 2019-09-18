@@ -13,7 +13,9 @@ The tool is written in C# .NET Core 2. It was developed and tested in Visual Stu
 ATOC CIF is a complicated format and the conversions in this tool are not perfect. If you want a reliable and frequently updated GTFS format timetable for Great Britain I recommend that you contact [ITO World](https://www.itoworld.com/) or [TransportAPI](https://www.transportapi.com/). Both of these companies, and probably others, can provide such services for a fee.
 
 ## Other conversion tools
-GTFS format timetables for passenger railway services in Great Britain are available via [Open Mobility Data](https://transitfeeds.com/p/association-of-train-operating-companies/284). I cannot get these to succesfully load into OpenTripPlanner and so they are not useful for me, which is why I've written this tool. 
+GTFS format timetables for passenger railway services in Great Britain are available via [Open Mobility Data](https://transitfeeds.com/p/association-of-train-operating-companies/284). I cannot get these to succesfully load into OpenTripPlanner and so they are not useful for me, which is why I've written this tool. I think that these feeds are created by the [dtd2mysql](https://github.com/planarnetwork/dtd2mysql) tool.
+
+An excellent overview of working with public transport timetables for Great Britain is provided by the [propeR](https://github.com/datasciencecampus/propeR) project, by the UK's Office for National Statistics.
 
 ## License
 This code is released under the MIT License, as included in this repository.
