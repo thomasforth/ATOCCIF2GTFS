@@ -1,4 +1,4 @@
-# ATOCCIF2TransXChange
+# ATOCCIF2GTFS
 Create GTFS format timetables for Great Britain's railways from the publicly available ATOC CIF format timetables.
 
 Railway timetables for Great Britain are available from [The Rail Delivery Group](http://data.atoc.org/). You will need to create an account to download the data.
