@@ -1,8 +1,9 @@
 # ATOCCIF2GTFS
 Create GTFS format timetables for Great Britain's railways from the publicly available ATOC CIF format timetables.
 
-Railway timetables for Great Britain are available from [The Rail Delivery Group](http://data.atoc.org/). You will need to create an account to download the data.
-The data is available for free, and I believe that it is licensed under [The Creative Commons Attribution 2.0 England and Wales license]( https://creativecommons.org/licenses/by/2.0/uk/legalcode). This permits me to share the original timetable file and its derivative version (the GTFS version of that timetable) while recognising its origin, as above.
+Railway timetables for Great Britain are available from [The Rail Delivery Group](http://data.atoc.org/). You will need to create an account to download the data. The data is available for free, and I believe that it is licensed under [The Creative Commons Attribution 2.0 England and Wales license]( https://creativecommons.org/licenses/by/2.0/uk/legalcode). This permits me to share the original timetable file and its derivative version (the GTFS version of that timetable) while recognising its origin, as above.
+
+This program uses [the NaPTAN database](), specifically the stops.csv file. An up to date version should be used or newer stations risk being ommitted from the output file.
 
 This program will convert the downloaded GB Rail Tiemtable to GTFS format. The output has been tested with [OpenTripPlanner](https://www.opentripplanner.org/) to ensure its usability for the creation of a Great Britain route planner, and analysis as provided by OpenTripPlanner.
 
