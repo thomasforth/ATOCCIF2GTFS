@@ -2,6 +2,7 @@
 using GeoCoordinatePortable;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace CIF2GTFS
             List<NaptanStop> NaptanStops = new List<NaptanStop>();
             using (TextReader textReader = File.OpenText("temp/Stops.csv"))
             {
-                CsvReader csvReader = new CsvReader(textReader);
+                CsvReader csvReader = new CsvReader(textReader, CultureInfo.InvariantCulture);
                 csvReader.Configuration.Delimiter = ",";
                 NaptanStops = csvReader.GetRecords<NaptanStop>().ToList();
             }
@@ -166,8 +167,8 @@ namespace CIF2GTFS
                         {
                             if (thirdSlot.Count() == 4 && fourthSlot.Count() == 4)
                             {
-                                stationStop.ArrivalTime = stringToTimeSpan(thirdSlot);
-                                stationStop.DepartureTime = stringToTimeSpan(fourthSlot);
+                                stationStop.WorkingTimetableDepartureTime = stringToTimeSpan(thirdSlot);
+                                stationStop.PublicTimetableDepartureTime = stringToTimeSpan(fourthSlot);
                                 stationStop.NaPTANStop = NaPTANStopsDictionary["9100" + stationStop.StationLongCode];
 
                                 if (StopTimesForJourneyIDDictionary.ContainsKey(CurrentJourneyID))
@@ -276,7 +277,7 @@ namespace CIF2GTFS
 
                 foreach (StationStop stationStop in StationStops)
                 {
-                    if (stationStop.DepartureTime < PreviousStopDepartureTime)
+                    if (stationStop.PublicTimetableDepartureTime < PreviousStopDepartureTime)
                     {
                         JourneyStartedYesterdayFlag = true;
                     }
@@ -290,25 +291,24 @@ namespace CIF2GTFS
 
                     if (JourneyStartedYesterdayFlag == true)
                     {
-                        stationStop.ArrivalTime = stationStop.ArrivalTime.Add(new TimeSpan(24, 0, 0));
-                        stationStop.DepartureTime = stationStop.DepartureTime.Add(new TimeSpan(24, 0, 0));
-                        stopTime.arrival_time = Math.Round(stationStop.ArrivalTime.TotalHours,0).ToString() + stationStop.ArrivalTime.ToString(@"hh\:mm\:ss").Substring(2,6);
-                        stopTime.departure_time = Math.Round(stationStop.DepartureTime.TotalHours, 0).ToString() + stationStop.DepartureTime.ToString(@"hh\:mm\:ss").Substring(2, 6);
+                        stationStop.WorkingTimetableDepartureTime = stationStop.WorkingTimetableDepartureTime.Add(new TimeSpan(24, 0, 0));
+                        stationStop.PublicTimetableDepartureTime = stationStop.PublicTimetableDepartureTime.Add(new TimeSpan(24, 0, 0));
+                        stopTime.arrival_time = Math.Floor(stationStop.PublicTimetableDepartureTime.TotalHours).ToString() + stationStop.PublicTimetableDepartureTime.ToString(@"hh\:mm\:ss").Substring(2,6);
+                        stopTime.departure_time = Math.Floor(stationStop.PublicTimetableDepartureTime.TotalHours).ToString() + stationStop.PublicTimetableDepartureTime.ToString(@"hh\:mm\:ss").Substring(2, 6);
                     }
                     else
                     {
-                        stopTime.arrival_time = stationStop.ArrivalTime.ToString(@"hh\:mm\:ss");
-                        stopTime.departure_time = stationStop.DepartureTime.ToString(@"hh\:mm\:ss");
+                        stopTime.arrival_time = stationStop.PublicTimetableDepartureTime.ToString(@"hh\:mm\:ss");
+                        stopTime.departure_time = stationStop.PublicTimetableDepartureTime.ToString(@"hh\:mm\:ss");
                     }
                     stopTimesList.Add(stopTime);
 
-                    PreviousStopDepartureTime = stationStop.DepartureTime;
+                    PreviousStopDepartureTime = stationStop.PublicTimetableDepartureTime;
                     count++;
                 }
             }
 
             List<Calendar> calendarList = JourneyDetailsForJourneyIDDictionary.Values.Select(x => x.OperationsCalendar).ToList();
-
 
             Console.WriteLine("Writing agency.txt");
             // write GTFS txts.
@@ -319,52 +319,54 @@ namespace CIF2GTFS
             }
 
             TextWriter agencyTextWriter = File.CreateText(@"output/agency.txt");
-            CsvWriter agencyCSVwriter = new CsvWriter(agencyTextWriter);
+            CsvWriter agencyCSVwriter = new CsvWriter(agencyTextWriter, CultureInfo.InvariantCulture);
             agencyCSVwriter.WriteRecords(AgencyList);
             agencyTextWriter.Dispose();
             agencyCSVwriter.Dispose();
 
             Console.WriteLine("Writing stops.txt");
             TextWriter stopsTextWriter = File.CreateText(@"output/stops.txt");
-            CsvWriter stopsCSVwriter = new CsvWriter(stopsTextWriter);
+            CsvWriter stopsCSVwriter = new CsvWriter(stopsTextWriter, CultureInfo.InvariantCulture);
             stopsCSVwriter.WriteRecords(GTFSStopsList);
             stopsTextWriter.Dispose();
             stopsCSVwriter.Dispose();
 
             Console.WriteLine("Writing routes.txt");
             TextWriter routesTextWriter = File.CreateText(@"output/routes.txt");
-            CsvWriter routesCSVwriter = new CsvWriter(routesTextWriter);
+            CsvWriter routesCSVwriter = new CsvWriter(routesTextWriter, CultureInfo.InvariantCulture);
             routesCSVwriter.WriteRecords(RoutesList);
             routesTextWriter.Dispose();
             routesCSVwriter.Dispose();
 
             Console.WriteLine("Writing trips.txt");
             TextWriter tripsTextWriter = File.CreateText(@"output/trips.txt");
-            CsvWriter tripsCSVwriter = new CsvWriter(tripsTextWriter);
+            CsvWriter tripsCSVwriter = new CsvWriter(tripsTextWriter, CultureInfo.InvariantCulture);
             tripsCSVwriter.WriteRecords(tripList);
             tripsTextWriter.Dispose();
             tripsCSVwriter.Dispose();
 
             Console.WriteLine("Writing calendar.txt");
             TextWriter calendarTextWriter = File.CreateText(@"output/calendar.txt");
-            CsvWriter calendarCSVwriter = new CsvWriter(calendarTextWriter);
+            CsvWriter calendarCSVwriter = new CsvWriter(calendarTextWriter, CultureInfo.InvariantCulture);
             calendarCSVwriter.WriteRecords(calendarList);
             calendarTextWriter.Dispose();
             calendarCSVwriter.Dispose();
 
             Console.WriteLine("Writing stop_times.txt");
             TextWriter stopTimeTextWriter = File.CreateText(@"output/stop_times.txt");
-            CsvWriter stopTimeCSVwriter = new CsvWriter(stopTimeTextWriter);
+            CsvWriter stopTimeCSVwriter = new CsvWriter(stopTimeTextWriter, CultureInfo.InvariantCulture);
             stopTimeCSVwriter.WriteRecords(stopTimesList);
             stopTimeTextWriter.Dispose();
             stopTimeCSVwriter.Dispose();
 
-            Console.WriteLine("Creating a valid GTFS .zip file.");
+            Console.WriteLine("Creating a GTFS .zip file.");
             if (File.Exists("output.zip"))
             {
                 File.Delete("output.zip");
             }
             ZipFile.CreateFromDirectory("output", "output.zip", CompressionLevel.Optimal, false, Encoding.UTF8);
+
+            Console.WriteLine("You may wish to validate the GTFS output using a tool such as https://github.com/google/transitfeed/");
 
             /*
             var OrderedStopTimesForJourneyDictionary = StopTimesForJourneyIDDictionary.OrderByDescending(x => x.Value.Count);
@@ -477,8 +479,8 @@ namespace CIF2GTFS
     {
         public string StationLongCode { get; set; }
         public string StopType { get; set; } // Origin, Intermediate, or Terminus
-        public TimeSpan ArrivalTime {get; set;}
-        public TimeSpan DepartureTime { get; set; }
+        public TimeSpan WorkingTimetableDepartureTime {get; set;}
+        public TimeSpan PublicTimetableDepartureTime { get; set; }
         public NaptanStop NaPTANStop { get; set; }
     }
 
