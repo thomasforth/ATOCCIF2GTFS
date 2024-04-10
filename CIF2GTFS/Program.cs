@@ -10,7 +10,7 @@ using System.Text;
 
 Console.WriteLine("Creating ATCOcode keyed dictionary of NaPTAN stops.");
 Dictionary<string, NaptanStop> NaPTANStopsDictionary = new Dictionary<string, NaptanStop>();
-using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../stops_compatible_with_ttis389.zip", FileMode.Open), ZipArchiveMode.Read))
+using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../Stops_20240410_compatible_with_ttis062.zip", FileMode.Open), ZipArchiveMode.Read))
 {
     using (CsvReader csvReader = new CsvReader(new StreamReader(Archive.Entries.First().Open()), CultureInfo.InvariantCulture))
     {
@@ -26,7 +26,7 @@ List<CIFStation> CIFStations = new List<CIFStation>();
 
 Dictionary<string, List<StationStop>> StopTimesForJourneyIDDictionary = new Dictionary<string, List<StationStop>>();
 Dictionary<string, JourneyDetail> JourneyDetailsForJourneyIDDictionary = new Dictionary<string, JourneyDetail>();
-using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../ttis389.zip", FileMode.Open), ZipArchiveMode.Read))
+using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../ttis062_validfrom20240406.zip", FileMode.Open), ZipArchiveMode.Read))
 {
     ZipArchiveEntry MSNFile = Archive.Entries.Where(x => x.FullName.EndsWith(".msn")).First();
     StreamReader StopFileStreamReader = new StreamReader(MSNFile.Open());
@@ -213,8 +213,8 @@ foreach (CIFStation cIFStation in CIFStations.Where(x => x.ATCOCode != null))
         stop_id = cIFStation.ATCOCode,
         stop_name = cIFStation.StationName,
         stop_code = cIFStation.StationShortCode,
-        stop_lat = Math.Round(NaPTANEntry.Latitude, 5),
-        stop_lon = Math.Round(NaPTANEntry.Longitude, 5)
+        stop_lat = Math.Round(NaPTANEntry.Latitude.Value, 5),
+        stop_lon = Math.Round(NaPTANEntry.Longitude.Value, 5)
     };
 
     GTFSStopsList.Add(gTFSNaptanStop);
@@ -296,7 +296,7 @@ foreach (string JourneyID in StopTimesForJourneyIDDictionary.Keys)
 
 List<Calendar> calendarList = JourneyDetailsForJourneyIDDictionary.Values.Select(x => x.OperationsCalendar).ToList();
 
-Console.WriteLine("Writing agency.txt");
+Console.WriteLine("Creating GTFS files.");
 // write GTFS txts.
 // agency.txt, calendar.txt, calendar_dates.txt, routes.txt, stop_times.txt, stops.txt, trips.txt
 if (Directory.Exists("output") == false)
@@ -337,11 +337,11 @@ using (CsvWriter CSVwriter = new CsvWriter(File.CreateText(@"output/stop_times.t
 
 
 Console.WriteLine("Creating a GTFS .zip file.");
-if (File.Exists("output.zip"))
+if (File.Exists("output_gtfs.zip"))
 {
-    File.Delete("output.zip");
+    File.Delete("output_gtfs.zip");
 }
-ZipFile.CreateFromDirectory("output", "output.zip", CompressionLevel.Optimal, false, Encoding.UTF8);
+ZipFile.CreateFromDirectory("output", "output_gtfs.zip", CompressionLevel.Optimal, false, Encoding.UTF8);
 
 Console.WriteLine("You may wish to validate the GTFS output using a tool such as https://github.com/google/transitfeed/");
 
@@ -549,7 +549,7 @@ public class NaptanStop
     public string ATCOCode { get; set; }
     public string NaptanCode { get; set; }
     public string CommonName { get; set; }
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public string StopType { get; set; }
 }
