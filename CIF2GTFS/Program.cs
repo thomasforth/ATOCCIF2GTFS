@@ -1,5 +1,6 @@
 ﻿using CsvHelper;
 using GeoCoordinatePortable;
+using GeoUK.Coordinates;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,7 +15,19 @@ using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../Stops_2024041
 {
     using (CsvReader csvReader = new CsvReader(new StreamReader(Archive.Entries.First().Open()), CultureInfo.InvariantCulture))
     {
-        csvReader.GetRecords<NaptanStop>().ToDictionary(x => x.ATCOCode, x => x);
+        NaPTANStopsDictionary = csvReader.GetRecords<NaptanStop>().ToDictionary(x => x.ATCOCode, x => x);
+
+        // sometimes (Crossrail stations in 2024) an Easting and Northing but not a Latitude and Longitude is supplied for a stop. We calculate LatLng from EastNorth
+        foreach (var Station in NaPTANStopsDictionary.Values)
+        {
+            if (Station.Latitude == null && Station.Easting != null)
+            {
+                var GBGridLocation = new Osgb36(Station.Easting.Value, Station.Northing.Value);
+                var LatLng = GeoUK.OSTN.Transform.OsgbToEtrs89(GBGridLocation);
+                Station.Latitude = LatLng.Latitude;
+                Station.Longitude = LatLng.Longitude;
+            }
+        }
     }
 }
 
@@ -549,6 +562,8 @@ public class NaptanStop
     public string ATCOCode { get; set; }
     public string NaptanCode { get; set; }
     public string CommonName { get; set; }
+    public double? Easting { get; set; }
+    public double? Northing { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public string StopType { get; set; }

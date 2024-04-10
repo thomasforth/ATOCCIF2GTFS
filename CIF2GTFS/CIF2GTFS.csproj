@@ -17,6 +17,7 @@
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="31.0.3" />
     <PackageReference Include="GeoCoordinate.NetCore" Version="1.0.0.1" />
+    <PackageReference Include="IeuanWalker.GeoUK.OSTN" Version="1.0.5" />
   </ItemGroup>
 
   <ItemGroup>
