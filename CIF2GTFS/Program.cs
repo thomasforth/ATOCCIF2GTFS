@@ -8,28 +8,14 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 
-Console.WriteLine("Loading NaPTAN stops.");
-if (Directory.Exists("temp") == true)
-{
-    Directory.Delete("temp", true);
-}
-Directory.CreateDirectory("temp");
-
-Console.WriteLine("Unzipping NaPTAN to a temporary folder.");
-ZipFile.ExtractToDirectory(@"stops.zip", "temp");
-List<NaptanStop> NaptanStops = new List<NaptanStop>();
-using (TextReader textReader = File.OpenText("temp/Stops.csv"))
-{
-    CsvReader csvReader = new CsvReader(textReader, CultureInfo.InvariantCulture);
-    // csvReader.Configuration.Delimiter = ",";
-    NaptanStops = csvReader.GetRecords<NaptanStop>().ToList();
-}
-
 Console.WriteLine("Creating ATCOcode keyed dictionary of NaPTAN stops.");
 Dictionary<string, NaptanStop> NaPTANStopsDictionary = new Dictionary<string, NaptanStop>();
-foreach (NaptanStop naptanStop in NaptanStops)
+using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../stops_compatible_with_ttis389.zip", FileMode.Open), ZipArchiveMode.Read))
 {
-    NaPTANStopsDictionary.Add(naptanStop.ATCOCode, naptanStop);
+    using (CsvReader csvReader = new CsvReader(new StreamReader(Archive.Entries.First().Open()), CultureInfo.InvariantCulture))
+    {
+        csvReader.GetRecords<NaptanStop>().ToDictionary(x => x.ATCOCode, x => x);
+    }
 }
 
 Console.WriteLine("Loading CIF stations and matching them to NaPTAN stops.");
@@ -37,153 +23,159 @@ List<CIFStation> CIFStations = new List<CIFStation>();
 // .msn lines are fixed-width columns and look like this.
 // "A    WHITTLESFORD PARKWAY          0WTLESFDWLF   WLF15484 62473 5                 "
 // A reasonable approach would be to split at the correct position, then trim, then only store entries with all features
-ZipFile.ExtractToDirectory(@"ttis389.zip", "temp");
-List<string> StopsFileLines = new List<string>(File.ReadAllLines("temp/ttisf389.msn"));
 
-foreach (string StopLine in StopsFileLines)
-{
-    string firstSlot = StopLine.Substring(0, 5).Trim();
-    string secondSlot = StopLine.Substring(5, 30).TrimEnd();
-    string thirdSlot = StopLine.Substring(35, 1);
-    string fourthSlot = StopLine.Substring(36, 7).Trim();
-    string fifthSlot = StopLine.Substring(43, 3).Trim();
-    string sixthSlot = StopLine.Substring(49, 8).Trim();
-    // The seventh slot is okay to be empty
-    string seventhSlot = StopLine.Substring(57, 1).Trim();
-    string eighthSlot = StopLine.Substring(58, 5).Trim();
-    string ninthSlot = StopLine.Substring(65, 1).Trim();
-
-    if (firstSlot == "A" && secondSlot.StartsWith(" ") == false)
-    {
-        CIFStation Station = new CIFStation()
-        {
-            StationName = secondSlot,
-            StationShortCode = fifthSlot,
-            StationLongCode = fourthSlot
-        };
-
-        if (NaPTANStopsDictionary.ContainsKey("9100" + Station.StationLongCode))
-        {
-            Station.ATCOCode = NaPTANStopsDictionary["9100" + Station.StationLongCode].ATCOCode;
-        }
-        else
-        {
-            Console.WriteLine($"No ATCO code found for {Station.StationName} station.");
-        }
-
-        CIFStations.Add(Station);
-    }
-}
-Console.WriteLine($"Read {CIFStations.Count} stations of which {CIFStations.Where(x => x.ATCOCode != null).Count()} have a matched NaPTAN code.");
-
-Console.WriteLine("Reading the timetable file.");
-List<string> TimetableFileLines = new List<string>(File.ReadAllLines("temp/ttisf389.mca"));
 Dictionary<string, List<StationStop>> StopTimesForJourneyIDDictionary = new Dictionary<string, List<StationStop>>();
 Dictionary<string, JourneyDetail> JourneyDetailsForJourneyIDDictionary = new Dictionary<string, JourneyDetail>();
-
-string CurrentJourneyID = "";
-string CurrentOperatorCode = "";
-string CurrentTrainType = "";
-string CurrentTrainClass = "";
-string CurrentTrainMaxSpeed = "";
-Calendar CurrentCalendar = null;
-
-foreach (string TimetableLine in TimetableFileLines)
+using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../ttis389.zip", FileMode.Open), ZipArchiveMode.Read))
 {
-    if (TimetableLine.StartsWith("BS"))
+    ZipArchiveEntry MSNFile = Archive.Entries.Where(x => x.FullName.EndsWith(".msn")).First();
+    StreamReader StopFileStreamReader = new StreamReader(MSNFile.Open());
+
+    while (StopFileStreamReader.EndOfStream == false)
     {
-        // THIS IS ALMOST CERTAINLY NOT THE CURRENT JOURNEY ID. BUT IT'S OKAY DURING DEVELOPMENT.
-        //CurrentJourneyID = TimetableLine;
+        string StopLine = StopFileStreamReader.ReadLine();
+        string firstSlot = StopLine.Substring(0, 5).Trim();
+        string secondSlot = StopLine.Substring(5, 30).TrimEnd();
+        string thirdSlot = StopLine.Substring(35, 1);
+        string fourthSlot = StopLine.Substring(36, 7).Trim();
+        string fifthSlot = StopLine.Substring(43, 3).Trim();
+        string sixthSlot = StopLine.Substring(49, 8).Trim();
+        // The seventh slot is okay to be empty
+        string seventhSlot = StopLine.Substring(57, 1).Trim();
+        string eighthSlot = StopLine.Substring(58, 5).Trim();
+        string ninthSlot = StopLine.Substring(65, 1).Trim();
 
-        // Example line is "BSNY244881905191912080000001 POO2D67    111821020 EMU333 100      S            P"
-        CurrentJourneyID = TimetableLine.Substring(2, 7);
-
-        string StartDateString = TimetableLine.Substring(9, 6);
-        string EndDateString = TimetableLine.Substring(15, 6);
-        string DaysOfOperationString = TimetableLine.Substring(21, 7);
-
-        // Since a single timetable can have a single Journey ID that is valid at different non-overlapping times a unique Journey ID includes the Date strings and the character at position 79.
-        CurrentJourneyID = CurrentJourneyID + StartDateString + EndDateString + TimetableLine.Substring(79, 1);
-
-        CurrentCalendar = new Calendar()
+        if (firstSlot == "A" && secondSlot.StartsWith(" ") == false)
         {
-            start_date = "20" + StartDateString,
-            end_date = "20" + EndDateString,
-            service_id = CurrentJourneyID + "_service",
-            monday = int.Parse(DaysOfOperationString.Substring(0, 1)),
-            tuesday = int.Parse(DaysOfOperationString.Substring(1, 1)),
-            wednesday = int.Parse(DaysOfOperationString.Substring(2, 1)),
-            thursday = int.Parse(DaysOfOperationString.Substring(3, 1)),
-            friday = int.Parse(DaysOfOperationString.Substring(4, 1)),
-            saturday = int.Parse(DaysOfOperationString.Substring(5, 1)),
-            sunday = int.Parse(DaysOfOperationString.Substring(6, 1))
-        };
-
-        CurrentTrainType = TimetableLine.Substring(50, 3);
-        CurrentTrainClass = TimetableLine.Substring(53, 3);
-        CurrentTrainMaxSpeed = TimetableLine.Substring(57, 3);
-    }
-
-    if (TimetableLine.StartsWith("BX"))
-    {
-        CurrentOperatorCode = TimetableLine.Substring(11, 2);
-
-        JourneyDetail journeyDetail = new JourneyDetail()
-        {
-            JourneyID = CurrentJourneyID,
-            OperatorCode = CurrentOperatorCode,
-            OperationsCalendar = CurrentCalendar,
-            TrainClass = CurrentTrainClass,
-            TrainMaxSpeed = CurrentTrainMaxSpeed,
-            TrainType = CurrentTrainType
-        };
-
-        JourneyDetailsForJourneyIDDictionary.Add(CurrentJourneyID, journeyDetail);
-    }
-
-    if (TimetableLine.StartsWith("LO") || TimetableLine.StartsWith("LI") || TimetableLine.StartsWith("LT"))
-    {
-        string firstSlot = TimetableLine.Substring(0, 2).Trim();
-        string secondSlot = TimetableLine.Substring(2, 7).Trim();
-        string thirdSlot = TimetableLine.Substring(10, 4).Trim();
-        string fourthSlot = TimetableLine.Substring(15, 4).Trim();
-        string fifthSlot = TimetableLine.Substring(25, 8).Trim();
-
-        if (fifthSlot != "00000000")
-        {
-            StationStop stationStop = new StationStop()
+            CIFStation Station = new CIFStation()
             {
-                StopType = firstSlot,
-                StationLongCode = secondSlot
+                StationName = secondSlot,
+                StationShortCode = fifthSlot,
+                StationLongCode = fourthSlot
             };
 
-            if (NaPTANStopsDictionary.ContainsKey("9100" + stationStop.StationLongCode))
+            if (NaPTANStopsDictionary.ContainsKey("9100" + Station.StationLongCode))
             {
-                if (thirdSlot.Count() == 4 && fourthSlot.Count() == 4)
-                {
-                    stationStop.WorkingTimetableDepartureTime = stringToTimeSpan(thirdSlot);
-                    stationStop.PublicTimetableDepartureTime = stringToTimeSpan(fourthSlot);
-                    stationStop.NaPTANStop = NaPTANStopsDictionary["9100" + stationStop.StationLongCode];
+                Station.ATCOCode = NaPTANStopsDictionary["9100" + Station.StationLongCode].ATCOCode;
+            }
+            else
+            {
+                Console.WriteLine($"No ATCO code found for {Station.StationName} station.");
+            }
 
-                    if (StopTimesForJourneyIDDictionary.ContainsKey(CurrentJourneyID))
+            CIFStations.Add(Station);
+        }
+    }
+
+    Console.WriteLine($"Read {CIFStations.Count} stations of which {CIFStations.Where(x => x.ATCOCode != null).Count()} have a matched NaPTAN code.");
+
+    Console.WriteLine("Reading the timetable file.");
+    ZipArchiveEntry TimetableFile = Archive.Entries.Where(x => x.FullName.EndsWith(".mca")).First();
+    StreamReader TimetableFileStreamReader = new StreamReader(TimetableFile.Open());
+
+    string CurrentJourneyID = "";
+    string CurrentOperatorCode = "";
+    string CurrentTrainType = "";
+    string CurrentTrainClass = "";
+    string CurrentTrainMaxSpeed = "";
+    Calendar CurrentCalendar = null;
+
+    while (TimetableFileStreamReader.EndOfStream == false)
+    {
+        string TimetableLine = TimetableFileStreamReader.ReadLine();
+        if (TimetableLine.StartsWith("BS"))
+        {
+            // THIS IS ALMOST CERTAINLY NOT THE CURRENT JOURNEY ID. BUT IT'S OKAY DURING DEVELOPMENT.
+            //CurrentJourneyID = TimetableLine;
+
+            // Example line is "BSNY244881905191912080000001 POO2D67    111821020 EMU333 100      S            P"
+            CurrentJourneyID = TimetableLine.Substring(2, 7);
+
+            string StartDateString = TimetableLine.Substring(9, 6);
+            string EndDateString = TimetableLine.Substring(15, 6);
+            string DaysOfOperationString = TimetableLine.Substring(21, 7);
+
+            // Since a single timetable can have a single Journey ID that is valid at different non-overlapping times a unique Journey ID includes the Date strings and the character at position 79.
+            CurrentJourneyID = CurrentJourneyID + StartDateString + EndDateString + TimetableLine.Substring(79, 1);
+
+            CurrentCalendar = new Calendar()
+            {
+                start_date = "20" + StartDateString,
+                end_date = "20" + EndDateString,
+                service_id = CurrentJourneyID + "_service",
+                monday = int.Parse(DaysOfOperationString.Substring(0, 1)),
+                tuesday = int.Parse(DaysOfOperationString.Substring(1, 1)),
+                wednesday = int.Parse(DaysOfOperationString.Substring(2, 1)),
+                thursday = int.Parse(DaysOfOperationString.Substring(3, 1)),
+                friday = int.Parse(DaysOfOperationString.Substring(4, 1)),
+                saturday = int.Parse(DaysOfOperationString.Substring(5, 1)),
+                sunday = int.Parse(DaysOfOperationString.Substring(6, 1))
+            };
+
+            CurrentTrainType = TimetableLine.Substring(50, 3);
+            CurrentTrainClass = TimetableLine.Substring(53, 3);
+            CurrentTrainMaxSpeed = TimetableLine.Substring(57, 3);
+        }
+
+        if (TimetableLine.StartsWith("BX"))
+        {
+            CurrentOperatorCode = TimetableLine.Substring(11, 2);
+
+            JourneyDetail journeyDetail = new JourneyDetail()
+            {
+                JourneyID = CurrentJourneyID,
+                OperatorCode = CurrentOperatorCode,
+                OperationsCalendar = CurrentCalendar,
+                TrainClass = CurrentTrainClass,
+                TrainMaxSpeed = CurrentTrainMaxSpeed,
+                TrainType = CurrentTrainType
+            };
+
+            JourneyDetailsForJourneyIDDictionary.Add(CurrentJourneyID, journeyDetail);
+        }
+
+        if (TimetableLine.StartsWith("LO") || TimetableLine.StartsWith("LI") || TimetableLine.StartsWith("LT"))
+        {
+            string firstSlot = TimetableLine.Substring(0, 2).Trim();
+            string secondSlot = TimetableLine.Substring(2, 7).Trim();
+            string thirdSlot = TimetableLine.Substring(10, 4).Trim();
+            string fourthSlot = TimetableLine.Substring(15, 4).Trim();
+            string fifthSlot = TimetableLine.Substring(25, 8).Trim();
+
+            if (fifthSlot != "00000000")
+            {
+                StationStop stationStop = new StationStop()
+                {
+                    StopType = firstSlot,
+                    StationLongCode = secondSlot
+                };
+
+                if (NaPTANStopsDictionary.ContainsKey("9100" + stationStop.StationLongCode))
+                {
+                    if (thirdSlot.Count() == 4 && fourthSlot.Count() == 4)
                     {
-                        List<StationStop> UpdatedStationStops = StopTimesForJourneyIDDictionary[CurrentJourneyID];
-                        UpdatedStationStops.Add(stationStop);
-                        StopTimesForJourneyIDDictionary.Remove(CurrentJourneyID);
-                        StopTimesForJourneyIDDictionary.Add(CurrentJourneyID, UpdatedStationStops);
-                    }
-                    else
-                    {
-                        StopTimesForJourneyIDDictionary.Add(CurrentJourneyID, new List<StationStop>() { stationStop });
+                        stationStop.WorkingTimetableDepartureTime = stringToTimeSpan(thirdSlot);
+                        stationStop.PublicTimetableDepartureTime = stringToTimeSpan(fourthSlot);
+                        stationStop.NaPTANStop = NaPTANStopsDictionary["9100" + stationStop.StationLongCode];
+
+                        if (StopTimesForJourneyIDDictionary.ContainsKey(CurrentJourneyID))
+                        {
+                            List<StationStop> UpdatedStationStops = StopTimesForJourneyIDDictionary[CurrentJourneyID];
+                            UpdatedStationStops.Add(stationStop);
+                            StopTimesForJourneyIDDictionary.Remove(CurrentJourneyID);
+                            StopTimesForJourneyIDDictionary.Add(CurrentJourneyID, UpdatedStationStops);
+                        }
+                        else
+                        {
+                            StopTimesForJourneyIDDictionary.Add(CurrentJourneyID, new List<StationStop>() { stationStop });
+                        }
                     }
                 }
             }
         }
     }
+    Console.WriteLine($"Read {StopTimesForJourneyIDDictionary.Keys.Count} journeys.");
 }
-
-
-Console.WriteLine($"Read {StopTimesForJourneyIDDictionary.Keys.Count} journeys.");
 
 Console.WriteLine("Creating GTFS output.");
 
@@ -312,46 +304,37 @@ if (Directory.Exists("output") == false)
     Directory.CreateDirectory("output");
 }
 
-TextWriter agencyTextWriter = File.CreateText(@"output/agency.txt");
-CsvWriter agencyCSVwriter = new CsvWriter(agencyTextWriter, CultureInfo.InvariantCulture);
-agencyCSVwriter.WriteRecords(AgencyList);
-agencyTextWriter.Dispose();
-agencyCSVwriter.Dispose();
 
-Console.WriteLine("Writing stops.txt");
-TextWriter stopsTextWriter = File.CreateText(@"output/stops.txt");
-CsvWriter stopsCSVwriter = new CsvWriter(stopsTextWriter, CultureInfo.InvariantCulture);
-stopsCSVwriter.WriteRecords(GTFSStopsList);
-stopsTextWriter.Dispose();
-stopsCSVwriter.Dispose();
+using (CsvWriter CSVwriter = new CsvWriter(File.CreateText(@"output/agency.txt"), CultureInfo.InvariantCulture))
+{
+    CSVwriter.WriteRecords(AgencyList);
+}
 
-Console.WriteLine("Writing routes.txt");
-TextWriter routesTextWriter = File.CreateText(@"output/routes.txt");
-CsvWriter routesCSVwriter = new CsvWriter(routesTextWriter, CultureInfo.InvariantCulture);
-routesCSVwriter.WriteRecords(RoutesList);
-routesTextWriter.Dispose();
-routesCSVwriter.Dispose();
+using (CsvWriter CSVwriter = new CsvWriter(File.CreateText(@"output/stops.txt"), CultureInfo.InvariantCulture))
+{
+    CSVwriter.WriteRecords(GTFSStopsList);
+}
 
-Console.WriteLine("Writing trips.txt");
-TextWriter tripsTextWriter = File.CreateText(@"output/trips.txt");
-CsvWriter tripsCSVwriter = new CsvWriter(tripsTextWriter, CultureInfo.InvariantCulture);
-tripsCSVwriter.WriteRecords(tripList);
-tripsTextWriter.Dispose();
-tripsCSVwriter.Dispose();
+using (CsvWriter CSVwriter = new CsvWriter(File.CreateText(@"output/routes.txt"), CultureInfo.InvariantCulture))
+{
+    CSVwriter.WriteRecords(RoutesList);
+}
 
-Console.WriteLine("Writing calendar.txt");
-TextWriter calendarTextWriter = File.CreateText(@"output/calendar.txt");
-CsvWriter calendarCSVwriter = new CsvWriter(calendarTextWriter, CultureInfo.InvariantCulture);
-calendarCSVwriter.WriteRecords(calendarList);
-calendarTextWriter.Dispose();
-calendarCSVwriter.Dispose();
+using (CsvWriter CSVwriter = new CsvWriter(File.CreateText(@"output/trips.txt"), CultureInfo.InvariantCulture))
+{
+    CSVwriter.WriteRecords(tripList);
+}
 
-Console.WriteLine("Writing stop_times.txt");
-TextWriter stopTimeTextWriter = File.CreateText(@"output/stop_times.txt");
-CsvWriter stopTimeCSVwriter = new CsvWriter(stopTimeTextWriter, CultureInfo.InvariantCulture);
-stopTimeCSVwriter.WriteRecords(stopTimesList);
-stopTimeTextWriter.Dispose();
-stopTimeCSVwriter.Dispose();
+using (CsvWriter CSVwriter = new CsvWriter(File.CreateText(@"output/calendar.txt"), CultureInfo.InvariantCulture))
+{
+    CSVwriter.WriteRecords(calendarList);
+}
+
+using (CsvWriter CSVwriter = new CsvWriter(File.CreateText(@"output/stop_times.txt"), CultureInfo.InvariantCulture))
+{
+    CSVwriter.WriteRecords(stopTimesList);
+}
+
 
 Console.WriteLine("Creating a GTFS .zip file.");
 if (File.Exists("output.zip"))
@@ -423,7 +406,7 @@ static TimeSpan stringToTimeSpan(string input)
     TimeSpan timeSpan = new TimeSpan(hoursint, minutesint, 0);
     return timeSpan;
 }
-//    }
+
 
 // Classes to hold the CIF input
 // .tsi file looks unimportant

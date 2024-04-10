@@ -15,20 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="stops.zip" />
-    <None Remove="ttis389.zip" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="stops.zip">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="ttis389.zip">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="CsvHelper" Version="31.0.3" />
     <PackageReference Include="GeoCoordinate.NetCore" Version="1.0.0.1" />
   </ItemGroup>
@@ -36,6 +22,12 @@
   <ItemGroup>
     <None Update="Stops.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="stops.zip">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+    <None Update="ttis389.zip">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
