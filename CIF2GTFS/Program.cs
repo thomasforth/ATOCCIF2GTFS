@@ -33,6 +33,21 @@ using (ZipArchive Archive = new ZipArchive(File.Open(@"../../../../Stops_2024041
 
 Console.WriteLine("Loading CIF stations and matching them to NaPTAN stops.");
 List<CIFStation> CIFStations = new List<CIFStation>();
+
+// The GB rail timetable includes Eurostar to Paris (and not, seemingly, Brussels, Lille, or Amsterdam)
+// This breaks timetables unless we add it. So we do.
+
+CIFStation ParisGareDuNord = new CIFStation()
+{
+    ATCOCode = "9100PARISND",
+    StationLongCode = "PARISND",
+    StationName = "Paris Gare du Nord",
+    StationShortCode = "PND"
+};
+
+CIFStations.Add(ParisGareDuNord);
+
+
 // .msn lines are fixed-width columns and look like this.
 // "A    WHITTLESFORD PARKWAY          0WTLESFDWLF   WLF15484 62473 5                 "
 // A reasonable approach would be to split at the correct position, then trim, then only store entries with all features
